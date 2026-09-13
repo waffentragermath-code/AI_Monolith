@@ -2,11 +2,17 @@ import json
 import queue
 import os
 import subprocess
+import difflib
+from enum import Enum
 import sounddevice as sd
 import pyttsx3
 from vosk import KaldiRecognizer, Model
 from AppOpener import open as open_app, close as close_app
-from dicts import APP_NAMES
+from dicts import APP_NAMES, ALIAS_TO_EXE, ALL_ALIASES, SYSTEM_NAMES
+
+class Parameter(Enum):
+  OPEN = 'open'
+  CLOSE = 'close'
 
 MODEL_PATH = "model"  # Папка с распакованной моделью Vosk
 SAMPLE_RATE = 16000
@@ -36,6 +42,13 @@ def listen():
         if text:
           return text
 
+def word_analytics(string): # нахождение похожего слова в словаре
+  match = difflib.get_close_matches(string.lower(), ALL_ALIASES, n=1, cutoff=0.6)
+  if match:
+    print(match)
+    return ALIAS_TO_EXE[match[0]]
+  return None
+
 def voice_answer(text: str):
   engine = pyttsx3.init()
   engine.setProperty('rate', 180)
@@ -57,41 +70,33 @@ def find_app(command: str) -> str:
     for alias in aliases:
       if alias in command:
         return exe
-  return None
+  return word_analytics(command)
 
-def app_open(app_name: str): # открытие программы по голосу
+def app(parameter: Parameter, app_name: str): # открытие программы по голосу
   if app_name == None:
     answer("Не удалось распознать название программы, повторите попытку")
     return
-  else:
-    answer(f"Запускаю {app_name}")
   try:
-    open_app(app_name, match_closest=True, output=False)
-  except Exception as e:
-    print(f"Exception {e}")
-
-def app_close(app_name: str): # закрытие программы по голосу
-  if app_name == None:
-    answer("Не удалось распознать название программы, повторите попытку")
-    return
-  else:
-    answer(f"Закрываю {app_name}")
-  try: 
-    close_app(app_name, match_closest=True, output=False)
+    if parameter == Parameter.OPEN:
+      answer(f"Открываю {app_name}")
+      open_app(app_name, match_closest=True, output=False)
+    elif parameter == Parameter.CLOSE:
+      answer(f"Закрываю {app_name}")
+      close_app(app_name, match_closest=True, output=False)
   except Exception as e:
     print(f"Exception {e}")
 
 
 def main():
-  print("Listen")
+  answer("Монолит начинает работу")
   while True:
     cmd = listen()
     if 'монолит' in cmd:
       print(cmd)
       if "открой" in cmd or "запусти" in cmd or "включи" in cmd:
-        app_open(find_app(cmd))
+        app(parameter=Parameter.OPEN, app_name=find_app(cmd))
       if "закрой" in cmd or "выключи" in cmd:
-        app_close(find_app(cmd))
+        app(parameter=Parameter.CLOSE, app_name=find_app(cmd))
     if "стоп" in cmd or "выход" in cmd:
       answer("Монолит завершает работу")
       break
